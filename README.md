@@ -1,199 +1,217 @@
-# 📊 Data Lake Architecture
+# Data-Lake-Architecture
 
-> Professional project by Gabriel Demetrios Lafis
+[Portugues](#portugues) | [English](#english)
 
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg)](https://img.shields.io/badge/)
-[![Flask](https://img.shields.io/badge/Flask-3.0-000000.svg)](https://img.shields.io/badge/)
-[![NumPy](https://img.shields.io/badge/NumPy-1.26-013243.svg)](https://img.shields.io/badge/)
-[![Pandas](https://img.shields.io/badge/Pandas-2.2-150458.svg)](https://img.shields.io/badge/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+---
 
-[English](#english) | [Português](#português)
+## Portugues
+
+### Descricao
+
+Implementacao de arquitetura de Data Lake em Python com zonas de armazenamento (raw/processed/curated), catalogo de metadados SQLite e dashboard Flask para gerenciamento de assets.
+
+### O que este projeto faz
+
+- Armazenamento de dados em multiplas zonas (raw, bronze, silver, gold) no sistema de arquivos local
+- Catalogo de metadados com SQLite para registro, busca e tagueamento de assets
+- Ingestao de dados com checksums SHA-256 para integridade de arquivos
+- Busca e tagueamento de assets de dados
+- Dashboard web Flask para navegacao, busca e ingestao de dados
+- Geracao de dados de exemplo (clientes e transacoes)
+- Suporte a formatos Parquet, CSV e JSON
+- Rastreamento de linhagem de dados entre assets
+
+### O que este projeto NAO possui
+
+- Processamento paralelo ou distribuido
+- Validacao de schema
+- Alertas ou monitoramento
+- Configuracao via YAML/JSON
+- Containerizacao (Docker)
+- CI/CD
+- Testes abrangentes (apenas scaffold)
+
+### Tecnologias
+
+| Tecnologia | Descricao | Papel |
+|------------|-----------|-------|
+| **Python** | Linguagem principal | Core |
+| **Flask** | Framework web leve | Dashboard web |
+| **pandas** | Biblioteca de manipulacao de dados | Leitura/escrita de dados |
+| **SQLite** | Banco de dados embutido | Catalogo de metadados |
+| **pyarrow** | Motor Apache Arrow | Suporte a formato Parquet |
+| **numpy** | Computacao numerica | Geracao de dados de exemplo |
+
+### Arquitetura
+
+```mermaid
+graph TB
+    subgraph DataLakeStorage["DataLakeStorage"]
+        RAW["Zona Raw"]
+        BRONZE["Zona Bronze"]
+        SILVER["Zona Silver"]
+        GOLD["Zona Gold"]
+        CHECKSUM["Checksums SHA-256"]
+    end
+
+    subgraph MetadataCatalog["MetadataCatalog"]
+        SQLITE["SQLite DB"]
+        REGISTER["Registro de Assets"]
+        SEARCH["Busca de Assets"]
+        TAGS["Tagueamento"]
+        LINEAGE["Linhagem de Dados"]
+    end
+
+    subgraph DataLakeManager["DataLakeManager"]
+        INGEST["Pipeline de Ingestao"]
+        TRANSFORM["Transformacao de Dados"]
+        SUMMARY["Resumo por Zona"]
+    end
+
+    subgraph FlaskDashboard["Flask Dashboard"]
+        HOME["/ - Pagina Principal"]
+        API_ZONES["/zone_summary"]
+        API_ASSETS["/assets"]
+        API_SEARCH["/search"]
+        API_GENERATE["/generate_sample"]
+    end
+
+    DataLakeManager --> DataLakeStorage
+    DataLakeManager --> MetadataCatalog
+    FlaskDashboard --> DataLakeManager
+    INGEST --> RAW
+    INGEST --> CHECKSUM
+    INGEST --> REGISTER
+    SEARCH --> SQLITE
+    REGISTER --> SQLITE
+```
+
+### Como Executar
+
+```bash
+# Clonar o repositorio
+git clone https://github.com/galafis/Data-Lake-Architecture.git
+cd Data-Lake-Architecture
+
+# Criar e ativar ambiente virtual
+python -m venv venv
+source venv/bin/activate  # No Windows: venv\Scripts\activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Executar a aplicacao
+python data_lake.py
+```
+
+O servidor Flask sera iniciado em `http://localhost:5000`.
+
+### Estrutura do Projeto
+
+```
+Data-Lake-Architecture/
+├── tests/              # Scaffold de testes
+│   ├── __init__.py
+│   └── test_main.py
+├── LICENSE
+├── README.md
+├── data_lake.py        # Modulo principal (toda a logica)
+└── requirements.txt
+```
+
+### Testes
+
+O diretorio `tests/` contem apenas um scaffold basico. Nao ha testes unitarios abrangentes implementados.
+
+```bash
+pytest tests/ -v
+```
 
 ---
 
 ## English
 
-### 🎯 Overview
+### Description
 
-**Data Lake Architecture** is a production-grade Python application that showcases modern software engineering practices including clean architecture, comprehensive testing, containerized deployment, and CI/CD readiness.
+Data Lake architecture implementation in Python with storage zones (raw/processed/curated), SQLite metadata catalog, and Flask dashboard for asset management.
 
-The codebase comprises **591 lines** of source code organized across **1 modules**, following industry best practices for maintainability, scalability, and code quality.
+### What this project does
 
-### ✨ Key Features
+- Multi-zone data storage (raw, bronze, silver, gold) on local filesystem
+- Metadata catalog with SQLite for asset registration, search, and tagging
+- Data ingestion with SHA-256 checksums for file integrity
+- Data asset search and tagging
+- Flask web dashboard for browsing, searching, and ingesting data
+- Sample data generation (customers and transactions)
+- Support for Parquet, CSV, and JSON formats
+- Data lineage tracking between assets
 
-- **🔄 Data Pipeline**: Scalable ETL with parallel processing
-- **✅ Data Validation**: Schema validation and quality checks
-- **📊 Monitoring**: Pipeline health metrics and alerting
-- **🔧 Configurability**: YAML/JSON-based pipeline configuration
-- **🏗️ Object-Oriented**: 3 core classes with clean architecture
+### What this project does NOT have
 
-### 🏗️ Architecture
+- Parallel or distributed processing
+- Schema validation
+- Alerting or monitoring
+- YAML/JSON configuration
+- Containerization (Docker)
+- CI/CD
+- Comprehensive testing (scaffold only)
 
-```mermaid
-graph TB
-    subgraph Client["🖥️ Client Layer"]
-        A[Web Client]
-        B[API Documentation]
-    end
-    
-    subgraph API["⚡ API Layer"]
-        C[Middleware Pipeline]
-        D[Route Handlers]
-        E[Business Logic]
-    end
-    
-    subgraph Data["💾 Data Layer"]
-        F[(Primary Database)]
-        G[Cache]
-    end
-    
-    A --> C
-    B --> C
-    C --> D --> E
-    E --> F
-    E --> G
-    
-    style Client fill:#e1f5fe
-    style API fill:#f3e5f5
-    style Data fill:#fff3e0
-```
-
-```mermaid
-classDiagram
-    class DataLakeStorage
-    class DataAsset
-    class MetadataCatalog
-```
-
-### 🚀 Quick Start
-
-#### Prerequisites
-
-- Python 3.12+
-- pip (Python package manager)
-
-#### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/galafis/Data-Lake-Architecture.git
-cd Data-Lake-Architecture
-
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-#### Running
-
-```bash
-# Run the application
-python src/main.py
-```
-
-### 📁 Project Structure
-
-```
-Data-Lake-Architecture/
-├── tests/         # Test suite
-│   ├── __init__.py
-│   └── test_main.py
-├── LICENSE
-├── README.md
-├── data_lake.py
-└── requirements.txt
-```
-
-### 🛠️ Tech Stack
+### Technologies
 
 | Technology | Description | Role |
 |------------|-------------|------|
-| **Python** | Core Language | Primary |
-| **Flask** | Lightweight web framework | Framework |
-| **NumPy** | Numerical computing | Framework |
-| **Pandas** | Data manipulation library | Framework |
+| **Python** | Main language | Core |
+| **Flask** | Lightweight web framework | Web dashboard |
+| **pandas** | Data manipulation library | Data read/write |
+| **SQLite** | Embedded database | Metadata catalog |
+| **pyarrow** | Apache Arrow engine | Parquet format support |
+| **numpy** | Numerical computing | Sample data generation |
 
-### 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-### 👤 Author
-
-**Gabriel Demetrios Lafis**
-- GitHub: [@galafis](https://github.com/galafis)
-- LinkedIn: [Gabriel Demetrios Lafis](https://linkedin.com/in/gabriel-demetrios-lafis)
-
----
-
-## Português
-
-### 🎯 Visão Geral
-
-**Data Lake Architecture** é uma aplicação Python de nível profissional que demonstra práticas modernas de engenharia de software, incluindo arquitetura limpa, testes abrangentes, implantação containerizada e prontidão para CI/CD.
-
-A base de código compreende **591 linhas** de código-fonte organizadas em **1 módulos**, seguindo as melhores práticas do setor para manutenibilidade, escalabilidade e qualidade de código.
-
-### ✨ Funcionalidades Principais
-
-- **🔄 Data Pipeline**: Scalable ETL with parallel processing
-- **✅ Data Validation**: Schema validation and quality checks
-- **📊 Monitoring**: Pipeline health metrics and alerting
-- **🔧 Configurability**: YAML/JSON-based pipeline configuration
-- **🏗️ Object-Oriented**: 3 core classes with clean architecture
-
-### 🏗️ Arquitetura
+### Architecture
 
 ```mermaid
 graph TB
-    subgraph Client["🖥️ Client Layer"]
-        A[Web Client]
-        B[API Documentation]
+    subgraph DataLakeStorage["DataLakeStorage"]
+        RAW["Raw Zone"]
+        BRONZE["Bronze Zone"]
+        SILVER["Silver Zone"]
+        GOLD["Gold Zone"]
+        CHECKSUM["SHA-256 Checksums"]
     end
-    
-    subgraph API["⚡ API Layer"]
-        C[Middleware Pipeline]
-        D[Route Handlers]
-        E[Business Logic]
+
+    subgraph MetadataCatalog["MetadataCatalog"]
+        SQLITE["SQLite DB"]
+        REGISTER["Asset Registration"]
+        SEARCH["Asset Search"]
+        TAGS["Tagging"]
+        LINEAGE["Data Lineage"]
     end
-    
-    subgraph Data["💾 Data Layer"]
-        F[(Primary Database)]
-        G[Cache]
+
+    subgraph DataLakeManager["DataLakeManager"]
+        INGEST["Ingestion Pipeline"]
+        TRANSFORM["Data Transformation"]
+        SUMMARY["Zone Summary"]
     end
-    
-    A --> C
-    B --> C
-    C --> D --> E
-    E --> F
-    E --> G
-    
-    style Client fill:#e1f5fe
-    style API fill:#f3e5f5
-    style Data fill:#fff3e0
+
+    subgraph FlaskDashboard["Flask Dashboard"]
+        HOME["/ - Main Page"]
+        API_ZONES["/zone_summary"]
+        API_ASSETS["/assets"]
+        API_SEARCH["/search"]
+        API_GENERATE["/generate_sample"]
+    end
+
+    DataLakeManager --> DataLakeStorage
+    DataLakeManager --> MetadataCatalog
+    FlaskDashboard --> DataLakeManager
+    INGEST --> RAW
+    INGEST --> CHECKSUM
+    INGEST --> REGISTER
+    SEARCH --> SQLITE
+    REGISTER --> SQLITE
 ```
 
-### 🚀 Início Rápido
-
-#### Prerequisites
-
-- Python 3.12+
-- pip (Python package manager)
-
-#### Installation
+### How to Run
 
 ```bash
 # Clone the repository
@@ -206,47 +224,40 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-#### Running
-
-```bash
 # Run the application
-python src/main.py
+python data_lake.py
 ```
 
-### 📁 Estrutura do Projeto
+The Flask server will start at `http://localhost:5000`.
+
+### Project Structure
 
 ```
 Data-Lake-Architecture/
-├── tests/         # Test suite
+├── tests/              # Test scaffold
 │   ├── __init__.py
 │   └── test_main.py
 ├── LICENSE
 ├── README.md
-├── data_lake.py
+├── data_lake.py        # Main module (all logic)
 └── requirements.txt
 ```
 
-### 🛠️ Stack Tecnológica
+### Tests
 
-| Tecnologia | Descrição | Papel |
-|------------|-----------|-------|
-| **Python** | Core Language | Primary |
-| **Flask** | Lightweight web framework | Framework |
-| **NumPy** | Numerical computing | Framework |
-| **Pandas** | Data manipulation library | Framework |
+The `tests/` directory contains only a basic scaffold. There are no comprehensive unit tests implemented.
 
-### 🤝 Contribuindo
+```bash
+pytest tests/ -v
+```
 
-Contribuições são bem-vindas! Sinta-se à vontade para enviar um Pull Request.
-
-### 📄 Licença
-
-Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
-
-### 👤 Autor
+### Author
 
 **Gabriel Demetrios Lafis**
 - GitHub: [@galafis](https://github.com/galafis)
 - LinkedIn: [Gabriel Demetrios Lafis](https://linkedin.com/in/gabriel-demetrios-lafis)
+
+### License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
