@@ -6,6 +6,7 @@ Modern data lake implementation with metadata management and data governance.
 
 import os
 import json
+import uuid
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -22,7 +23,7 @@ class DataAsset:
     asset_id: str
     name: str
     path: str
-    format: str
+    file_format: str
     size_bytes: int
     created_at: datetime
     updated_at: datetime
@@ -31,6 +32,16 @@ class DataAsset:
     owner: str
     description: str
     checksum: str
+
+
+def _serialize_asset(asset: DataAsset) -> dict:
+    """Convert a DataAsset to a JSON-serializable dict."""
+    d = asdict(asset)
+    for key, value in d.items():
+        if isinstance(value, datetime):
+            d[key] = value.isoformat()
+    return d
+
 
 class DataLakeStorage:
     """Manages data storage in the data lake."""
@@ -49,7 +60,7 @@ class DataLakeStorage:
             zone_path.mkdir(parents=True, exist_ok=True)
     
     def store_data(self, data: pd.DataFrame, zone: str, dataset_name: str, 
-                   format: str = 'parquet') -> str:
+                   file_format: str = 'parquet') -> str:
         """Store data in specified zone."""
         if zone not in self.zones:
             raise ValueError(f"Invalid zone: {zone}")
@@ -60,18 +71,18 @@ class DataLakeStorage:
         
         # Generate filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{dataset_name}_{timestamp}.{format}"
+        filename = f"{dataset_name}_{timestamp}.{file_format}"
         file_path = dataset_path / filename
         
         # Store data based on format
-        if format == 'parquet':
+        if file_format == 'parquet':
             data.to_parquet(file_path, index=False)
-        elif format == 'csv':
+        elif file_format == 'csv':
             data.to_csv(file_path, index=False)
-        elif format == 'json':
+        elif file_format == 'json':
             data.to_json(file_path, orient='records')
         else:
-            raise ValueError(f"Unsupported format: {format}")
+            raise ValueError(f"Unsupported format: {file_format}")
         
         return str(file_path)
     
@@ -111,12 +122,12 @@ class DataLakeStorage:
         }
     
     def _calculate_checksum(self, file_path: str) -> str:
-        """Calculate file checksum."""
-        hash_md5 = hashlib.md5()
+        """Calculate file checksum using SHA-256."""
+        hash_sha256 = hashlib.sha256()
         with open(file_path, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        return hash_md5.hexdigest()
+                hash_sha256.update(chunk)
+        return hash_sha256.hexdigest()
 
 class MetadataCatalog:
     """Manages metadata catalog for data assets."""
@@ -127,66 +138,64 @@ class MetadataCatalog:
     
     def _init_database(self):
         """Initialize metadata database."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS data_assets (
-                asset_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                path TEXT NOT NULL,
-                format TEXT NOT NULL,
-                size_bytes INTEGER,
-                created_at TEXT,
-                updated_at TEXT,
-                schema TEXT,
-                tags TEXT,
-                owner TEXT,
-                description TEXT,
-                checksum TEXT
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS lineage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                source_asset_id TEXT,
-                target_asset_id TEXT,
-                transformation TEXT,
-                created_at TEXT,
-                FOREIGN KEY (source_asset_id) REFERENCES data_assets (asset_id),
-                FOREIGN KEY (target_asset_id) REFERENCES data_assets (asset_id)
-            )
-        """)
-        
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS data_assets (
+                    asset_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    file_format TEXT NOT NULL,
+                    size_bytes INTEGER,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    schema TEXT,
+                    tags TEXT,
+                    owner TEXT,
+                    description TEXT,
+                    checksum TEXT
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS lineage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_asset_id TEXT,
+                    target_asset_id TEXT,
+                    transformation TEXT,
+                    created_at TEXT,
+                    FOREIGN KEY (source_asset_id) REFERENCES data_assets (asset_id),
+                    FOREIGN KEY (target_asset_id) REFERENCES data_assets (asset_id)
+                )
+            """)
+            
+            conn.commit()
     
     def register_asset(self, asset: DataAsset) -> bool:
         """Register a new data asset."""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                INSERT OR REPLACE INTO data_assets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                asset.asset_id,
-                asset.name,
-                asset.path,
-                asset.format,
-                asset.size_bytes,
-                asset.created_at.isoformat(),
-                asset.updated_at.isoformat(),
-                json.dumps(asset.schema),
-                json.dumps(asset.tags),
-                asset.owner,
-                asset.description,
-                asset.checksum
-            ))
-            
-            conn.commit()
-            conn.close()
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO data_assets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    asset.asset_id,
+                    asset.name,
+                    asset.path,
+                    asset.file_format,
+                    asset.size_bytes,
+                    asset.created_at.isoformat(),
+                    asset.updated_at.isoformat(),
+                    json.dumps(asset.schema),
+                    json.dumps(asset.tags),
+                    asset.owner,
+                    asset.description,
+                    asset.checksum
+                ))
+                
+                conn.commit()
             return True
         except Exception as e:
             print(f"Error registering asset: {e}")
@@ -194,19 +203,18 @@ class MetadataCatalog:
     
     def get_asset(self, asset_id: str) -> Optional[DataAsset]:
         """Get asset by ID."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT * FROM data_assets WHERE asset_id = ?", (asset_id,))
-        row = cursor.fetchone()
-        conn.close()
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM data_assets WHERE asset_id = ?", (asset_id,))
+            row = cursor.fetchone()
         
         if row:
             return DataAsset(
                 asset_id=row[0],
                 name=row[1],
                 path=row[2],
-                format=row[3],
+                file_format=row[3],
                 size_bytes=row[4],
                 created_at=datetime.fromisoformat(row[5]),
                 updated_at=datetime.fromisoformat(row[6]),
@@ -220,24 +228,23 @@ class MetadataCatalog:
     
     def search_assets(self, query: str = "", tags: List[str] = None) -> List[DataAsset]:
         """Search assets by query and tags."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        sql = "SELECT * FROM data_assets WHERE 1=1"
-        params = []
-        
-        if query:
-            sql += " AND (name LIKE ? OR description LIKE ?)"
-            params.extend([f"%{query}%", f"%{query}%"])
-        
-        if tags:
-            for tag in tags:
-                sql += " AND tags LIKE ?"
-                params.append(f"%{tag}%")
-        
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        conn.close()
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            sql = "SELECT * FROM data_assets WHERE 1=1"
+            params = []
+            
+            if query:
+                sql += " AND (name LIKE ? OR description LIKE ?)"
+                params.extend([f"%{query}%", f"%{query}%"])
+            
+            if tags:
+                for tag in tags:
+                    sql += " AND tags LIKE ?"
+                    params.append(f"%{tag}%")
+            
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
         
         assets = []
         for row in rows:
@@ -245,7 +252,7 @@ class MetadataCatalog:
                 asset_id=row[0],
                 name=row[1],
                 path=row[2],
-                format=row[3],
+                file_format=row[3],
                 size_bytes=row[4],
                 created_at=datetime.fromisoformat(row[5]),
                 updated_at=datetime.fromisoformat(row[6]),
@@ -260,16 +267,15 @@ class MetadataCatalog:
     
     def add_lineage(self, source_id: str, target_id: str, transformation: str):
         """Add data lineage relationship."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO lineage (source_asset_id, target_asset_id, transformation, created_at)
-            VALUES (?, ?, ?, ?)
-        """, (source_id, target_id, transformation, datetime.now().isoformat()))
-        
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO lineage (source_asset_id, target_asset_id, transformation, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (source_id, target_id, transformation, datetime.now().isoformat()))
+            
+            conn.commit()
 
 class DataLakeManager:
     """Main data lake management interface."""
@@ -288,12 +294,12 @@ class DataLakeManager:
         file_info = self.storage.get_file_info(file_path)
         
         # Create asset
-        asset_id = hashlib.md5(f"{name}_{datetime.now()}".encode()).hexdigest()
+        asset_id = str(uuid.uuid4())
         asset = DataAsset(
             asset_id=asset_id,
             name=name,
             path=file_path,
-            format=Path(file_path).suffix[1:],
+            file_format=Path(file_path).suffix[1:],
             size_bytes=file_info['size_bytes'],
             created_at=file_info['created_at'],
             updated_at=file_info['modified_at'],
@@ -363,7 +369,7 @@ class DataLakeManager:
 
 # Flask Web Interface
 app = Flask(__name__)
-data_lake = DataLakeManager()
+data_lake = None
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -392,7 +398,7 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏗️ Data Lake Architecture</h1>
+            <h1>Data Lake Architecture</h1>
             <p>Modern data lake with metadata management and governance</p>
         </div>
         
@@ -464,7 +470,7 @@ HTML_TEMPLATE = """
                         assetDiv.innerHTML = `
                             <div class="asset-header">${asset.name}</div>
                             <div class="asset-meta">
-                                Owner: ${asset.owner} | Format: ${asset.format} | 
+                                Owner: ${asset.owner} | Format: ${asset.file_format} | 
                                 Size: ${(asset.size_bytes / 1024).toFixed(1)} KB |
                                 Tags: ${asset.tags.join(', ')}
                             </div>
@@ -489,7 +495,7 @@ HTML_TEMPLATE = """
                         assetDiv.innerHTML = `
                             <div class="asset-header">${asset.name}</div>
                             <div class="asset-meta">
-                                Owner: ${asset.owner} | Format: ${asset.format} | 
+                                Owner: ${asset.owner} | Format: ${asset.file_format} | 
                                 Size: ${(asset.size_bytes / 1024).toFixed(1)} KB |
                                 Tags: ${asset.tags.join(', ')}
                             </div>
@@ -521,14 +527,14 @@ def zone_summary():
 def get_assets():
     """Get all assets."""
     assets = data_lake.catalog.search_assets()
-    return jsonify([asdict(asset) for asset in assets])
+    return jsonify([_serialize_asset(asset) for asset in assets])
 
 @app.route('/search')
 def search_assets():
     """Search assets."""
     query = request.args.get('q', '')
     assets = data_lake.catalog.search_assets(query)
-    return jsonify([asdict(asset) for asset in assets])
+    return jsonify([_serialize_asset(asset) for asset in assets])
 
 @app.route('/generate_sample', methods=['POST'])
 def generate_sample():
@@ -575,7 +581,7 @@ def generate_sample():
         
         return jsonify({'message': 'Sample data generated successfully'})
     except Exception as e:
-        return jsonify({'message': f'Error generating sample data: {str(e)}'})
+        return jsonify({'message': f'Error generating sample data: {str(e)}'}), 500
 
 def main():
     """Main execution function."""
@@ -584,8 +590,8 @@ def main():
     
     print("Starting web interface...")
     print("Open http://localhost:5000 in your browser")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)
 
 if __name__ == "__main__":
+    data_lake = DataLakeManager()
     main()
-
